@@ -1,11 +1,10 @@
-import jax.numpy as jnp
-from jax import vmap
-from jax.random import split
-from jax.lax import scan
+import warnings
 
 import flax.linen as nn
-
-import warnings
+import jax.numpy as jnp
+from jax import vmap
+from jax.lax import scan
+from jax.random import split
 
 warnings.filterwarnings("ignore")
 
@@ -61,11 +60,15 @@ def train(key, bandit_cls, env, npulls, ntrials, bandit_kwargs, neural=True):
     warmup_contexts, warmup_states, warmup_actions, warmup_rewards = env.warmup(npulls)
 
     key, mykey = split(key)
-    bel = bandit.init_bel(mykey, warmup_contexts, warmup_states, warmup_actions, warmup_rewards)
+    bel = bandit.init_bel(
+        mykey, warmup_contexts, warmup_states, warmup_actions, warmup_rewards
+    )
     warmup = (warmup_contexts, warmup_states, warmup_actions, warmup_rewards)
 
     def single_trial(key):
-        _, _, rewards = run_bandit(key, bandit, bel, env, warmup, nsteps=nsteps, neural=neural)
+        _, _, rewards = run_bandit(
+            key, bandit, bel, env, warmup, nsteps=nsteps, neural=neural
+        )
         return rewards
 
     if ntrials > 1:
@@ -98,7 +101,7 @@ def run_bandit(key, bandit, bel, env, warmup, nsteps, neural=True):
     if neural:
         bandit.init_contexts_and_states(env.contexts[steps], env.labels_onehot[steps])
         mu, Sigma, a, b, params, _ = bel
-        bel = (mu, Sigma, a, b, params, 0)
+        bel = (mu, Sigma, a, b, params, 0.0)
 
     _, (contexts, actions, rewards) = scan(step, bel, (keys, steps))
 

@@ -8,14 +8,14 @@
 
 import jax.numpy as jnp
 from jax import vmap
-from jax.random import split
-from jax.nn import one_hot
-from jax.ops import index_update
+
+# from jax.ops import index_update
 from jax.lax import scan
+from jax.nn import one_hot
+from jax.random import split
+from tensorflow_probability.substrates import jax as tfp
 
 from .agent_utils import NIGupdate
-
-from tensorflow_probability.substrates import jax as tfp
 
 tfd = tfp.distributions
 
@@ -29,7 +29,7 @@ class LinearBanditWide:
 
     def widen(self, context, action):
         phi = jnp.zeros((self.num_arms, self.num_features))
-        phi = index_update(phi, action, context)
+        phi = phi.at[action].set(context)
         return phi.flatten()
 
     def init_bel(self, key, contexts, states, actions, rewards):
@@ -60,8 +60,9 @@ class LinearBanditWide:
         sigma_key, w_key = split(key, 2)
         sigma2_samp = tfd.InverseGamma(concentration=a, scale=b).sample(seed=sigma_key)
         covariance_matrix = sigma2_samp * Sigma
-        w = tfd.MultivariateNormalFullCovariance(loc=mu, covariance_matrix=covariance_matrix).sample(
-            seed=w_key)
+        w = tfd.MultivariateNormalFullCovariance(
+            loc=mu, covariance_matrix=covariance_matrix
+        ).sample(seed=w_key)
         return w
 
     def choose_action(self, key, bel, context):

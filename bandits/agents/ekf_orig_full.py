@@ -1,22 +1,30 @@
 import jax.numpy as jnp
+import optax
+from flax.training import train_state
 from jax import jit
 from jax.flatten_util import ravel_pytree
-
-import optax
-
-from flax.training import train_state
-
-from .agent_utils import train
 from jsl.nlds.extended_kalman_filter import ExtendedKalmanFilter
 from scripts.training_utils import MLP
 from tensorflow_probability.substrates import jax as tfp
+
+from .agent_utils import train
 
 tfd = tfp.distributions
 
 
 class EKFNeuralBandit:
-    def __init__(self, num_features, num_arms, model, opt, prior_noise_variance, nwarmup=1000, nepochs=1000,
-                 system_noise=0.0, observation_noise=1.0):
+    def __init__(
+        self,
+        num_features,
+        num_arms,
+        model,
+        opt,
+        prior_noise_variance,
+        nwarmup=1000,
+        nepochs=1000,
+        system_noise=0.0,
+        observation_noise=1.0,
+    ):
         """
         Subspace Neural Bandit implementation.
         Parameters
@@ -27,7 +35,7 @@ class EKFNeuralBandit:
             The environment to be used.
         model : flax.nn.Module
             The flax model to be used for the bandits. Note that this model is independent of the
-            model architecture. The only constraint is that the last layer should have the same 
+            model architecture. The only constraint is that the last layer should have the same
             number of outputs as the number of arms.
         learning_rate : float
             The learning rate for the optimizer used for the warmup phase.
@@ -55,16 +63,23 @@ class EKFNeuralBandit:
         self.observation_noise = observation_noise
 
     def init_bel(self, key, contexts, states, actions, rewards):
-        initial_params = self.model.init(key, jnp.ones((1, self.num_features)))["params"]
-        initial_train_state = train_state.TrainState.create(apply_fn=self.model.apply, params=initial_params,
-                                                            tx=self.opt)
+        initial_params = self.model.init(key, jnp.ones((1, self.num_features)))[
+            "params"
+        ]
+        initial_train_state = train_state.TrainState.create(
+            apply_fn=self.model.apply, params=initial_params, tx=self.opt
+        )
 
         def loss_fn(params):
-            pred_reward = self.model.apply({"params": params}, contexts)[:, actions.astype(int)]
+            pred_reward = self.model.apply({"params": params}, contexts)[
+                :, actions.astype(int)
+            ]
             loss = optax.l2_loss(pred_reward, states[:, actions.astype(int)]).mean()
             return loss, pred_reward
 
-        warmup_state, _ = train(initial_train_state, loss_fn=loss_fn, nepochs=self.nepochs)
+        warmup_state, _ = train(
+            initial_train_state, loss_fn=loss_fn, nepochs=self.nepochs
+        )
 
         params_full_init, reconstruct_tree_params = ravel_pytree(warmup_state.params)
         nparams = params_full_init.size
@@ -96,7 +111,9 @@ class EKFNeuralBandit:
 
     def sample_params(self, key, bel):
         params_subspace, covariance_subspace, t = bel
-        mv_normal = tfd.MultivariateNormalFullCovariance(loc=params_subspace, covariance_matrix=covariance_subspace)
+        mv_normal = tfd.MultivariateNormalFullCovariance(
+            loc=params_subspace, covariance_matrix=covariance_subspace
+        )
         params_subspace = mv_normal.sample(seed=key)
         return params_subspace
 

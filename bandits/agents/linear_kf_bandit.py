@@ -1,5 +1,6 @@
 import jax.numpy as jnp
-from jax.ops import index_update
+
+# from jax.ops import index_update
 from jax.lax import scan
 from jax.random import split
 from jsl.lds.kalman_filter import KalmanFilterNoiseEstimation
@@ -22,7 +23,7 @@ class LinearKFBandit:
         Sigma0 = jnp.eye(self.num_features)
         mu0 = jnp.zeros((self.num_features,))
 
-        Sigma = 1. / self.lmbda * jnp.repeat(Sigma0[None, ...], self.num_arms, axis=0)
+        Sigma = 1.0 / self.lmbda * jnp.repeat(Sigma0[None, ...], self.num_arms, axis=0)
         mu = Sigma @ mu0
         A = jnp.eye(self.num_features)
         Q = 0
@@ -46,10 +47,10 @@ class LinearKFBandit:
 
         mu_k, Sigma_k, v_k, tau_k = self.kf.kalman_step(state, xs)
 
-        mu = index_update(mu, action, mu_k)
-        Sigma = index_update(Sigma, action, Sigma_k)
-        v = index_update(v, action, v_k)
-        tau = index_update(tau, action, tau_k)
+        mu = mu.at[action].set(mu_k)
+        Sigma = Sigma.at[action].set(Sigma_k)
+        v = v.at[action].set(v_k)
+        tau = tau.at[action].set(tau_k)
 
         bel = (mu, Sigma, v, tau)
 
@@ -59,11 +60,13 @@ class LinearKFBandit:
         sigma_key, w_key = split(key, 2)
         mu, Sigma, v, tau = bel
 
-        lmbda = tfd.InverseGamma(v / 2., (v * tau) / 2.).sample(seed=sigma_key)
+        lmbda = tfd.InverseGamma(v / 2.0, (v * tau) / 2.0).sample(seed=sigma_key)
         V = lmbda[:, None, None]
 
         covariance_matrix = V * Sigma
-        w = tfd.MultivariateNormalFullCovariance(loc=mu, covariance_matrix=covariance_matrix).sample(seed=w_key)
+        w = tfd.MultivariateNormalFullCovariance(
+            loc=mu, covariance_matrix=covariance_matrix
+        ).sample(seed=w_key)
 
         return w
 

@@ -1,16 +1,14 @@
-import jax.numpy as jnp
-from jax.random import split, permutation
-from jax.nn import one_hot
+import io
+import pickle
 
+import jax.numpy as jnp
 import numpy as np
 import pandas as pd
-
-import pickle
 import requests
-import io
-
-from sklearn.preprocessing import OneHotEncoder, normalize
+from jax.nn import one_hot
+from jax.random import permutation, split
 from sklearn.datasets import fetch_openml
+from sklearn.preprocessing import OneHotEncoder, normalize
 
 from .environment import BanditEnvironment
 
@@ -22,15 +20,19 @@ def safe_std(values):
 
 
 def read_file_from_url(name):
-    if name == 'adult':
-        url = "https://raw.githubusercontent.com/probml/probml-data/main/data/adult.data"
-    elif name == 'covertype':
+    if name == "adult":
+        url = (
+            "https://raw.githubusercontent.com/probml/probml-data/main/data/adult.data"
+        )
+    elif name == "covertype":
         url = "https://raw.githubusercontent.com/probml/probml-data/main/data/covtype.data"
     else:
-        url = "https://raw.githubusercontent.com/probml/probml-data/main/data/shuttle.trn"
+        url = (
+            "https://raw.githubusercontent.com/probml/probml-data/main/data/shuttle.trn"
+        )
 
     download = requests.get(url).content
-    file = io.StringIO(download.decode('utf-8'))
+    file = io.StringIO(download.decode("utf-8"))
     return file
 
 
@@ -47,7 +49,7 @@ def classification_to_bandit_problem(X, y, narms=None):
     sstd = safe_std(np.std(X, axis=0, keepdims=True)[0, :])
 
     # Normalize features
-    X = ((X - np.mean(X, axis=0, keepdims=True)) / sstd)
+    X = (X - np.mean(X, axis=0, keepdims=True)) / sstd
 
     # One hot encode labels as rewards
     y = one_hot(y, narms)
@@ -89,15 +91,15 @@ def sample_adult_data():
     https://archive.ics.uci.edu/ml/datasets/census+income
     """
     file = read_file_from_url("adult")
-    df = pd.read_csv(file, header=None, na_values=[' ?']).dropna()
+    df = pd.read_csv(file, header=None, na_values=[" ?"]).dropna()
 
     narms = 2
 
-    y = df[14].astype('str')
+    y = df[14].astype("str")
     df = df.drop([14, 6], axis=1)
 
-    y = y.str.replace('.', '')
-    y = y.astype('category').cat.codes.to_numpy()
+    y = y.str.replace(".", "")
+    y = y.astype("category").cat.codes.to_numpy()
 
     # Convert categorical variables to 1 hot encoding
     cols_to_transform = [1, 3, 5, 7, 8, 9, 13]
@@ -120,13 +122,13 @@ def sample_covertype_data():
     """
 
     file = read_file_from_url("covertype")
-    df = pd.read_csv(file, header=None, na_values=[' ?']).dropna()
+    df = pd.read_csv(file, header=None, na_values=[" ?"]).dropna()
 
     narms = 7
 
     # Assuming what the paper calls response variable is the label?
     # Last column is label.
-    y = df[df.columns[-1]].astype('category').cat.codes.to_numpy()
+    y = df[df.columns[-1]].astype("category").cat.codes.to_numpy()
     df = df.drop([df.columns[-1]], axis=1)
 
     X = df.to_numpy()
@@ -135,27 +137,27 @@ def sample_covertype_data():
 
 
 def get_tabular_data_from_url(name):
-    if name == 'adult':
+    if name == "adult":
         return sample_adult_data()
-    elif name == 'covertype':
+    elif name == "covertype":
         return sample_covertype_data()
-    elif name == 'statlog':
+    elif name == "statlog":
         return sample_shuttle_data()
     else:
-        raise RuntimeError('Dataset does not exist')
+        raise RuntimeError("Dataset does not exist")
 
 
 def get_tabular_data_from_openml(name):
-    if name == 'adult':
-        X, y = fetch_openml('adult', version=2, return_X_y=True, as_frame=False)
-    elif name == 'covertype':
-        X, y = fetch_openml('covertype', version=3, return_X_y=True, as_frame=False)
-    elif name == 'statlog':
-        X, y = fetch_openml('shuttle', version=1, return_X_y=True, as_frame=False)
+    if name == "adult":
+        X, y = fetch_openml("adult", version=2, return_X_y=True, as_frame=False)
+    elif name == "covertype":
+        X, y = fetch_openml("covertype", version=3, return_X_y=True, as_frame=False)
+    elif name == "statlog":
+        X, y = fetch_openml("shuttle", version=1, return_X_y=True, as_frame=False)
     else:
-        raise RuntimeError('Dataset does not exist')
+        raise RuntimeError("Dataset does not exist")
 
-    X[np.isnan(X)] = - 1
+    X[np.isnan(X)] = -1
     X = normalize(X)
 
     # generate one_hot coding:
@@ -177,7 +179,9 @@ def get_tabular_data_from_pkl(name, path):
     return contexts, actions, opt_rewards
 
 
-def TabularEnvironment(key, name, ntrain=0, intercept=True, load_from="pkl", path="./bandit-data"):
+def TabularEnvironment(
+    key, name, ntrain=0, intercept=True, load_from="pkl", path="./bandit-data"
+):
     if load_from == "url":
         X, y, opt_rewards = get_tabular_data_from_openml(name)
     elif load_from == "openml":
@@ -185,7 +189,7 @@ def TabularEnvironment(key, name, ntrain=0, intercept=True, load_from="pkl", pat
     elif load_from == "pkl":
         X, y, opt_rewards = get_tabular_data_from_pkl(name, path)
     else:
-        raise ValueError('load_from must be equal to pkl, openml or url.')
+        raise ValueError("load_from must be equal to pkl, openml or url.")
 
     ntrain = ntrain if ntrain < len(X) and ntrain > 0 else len(X)
     X, y = jnp.float32(X)[:ntrain], jnp.float32(y)[:ntrain]

@@ -1,23 +1,21 @@
-import optax
-import pandas as pd
-from jax.random import split, PRNGKey
-
 import argparse
 from time import time
 
-from environments.tabular_env import TabularEnvironment
-
-from agents.linear_bandit import LinearBandit
-from agents.linear_kf_bandit import LinearKFBandit
-from agents.linear_bandit_wide import LinearBanditWide
-from agents.ekf_subspace import SubspaceNeuralBandit
+import optax
+import pandas as pd
+from agents.diagonal_subspace import DiagonalSubspaceNeuralBandit
 from agents.ekf_orig_diag import DiagonalNeuralBandit
 from agents.ekf_orig_full import EKFNeuralBandit
-from agents.diagonal_subspace import DiagonalSubspaceNeuralBandit
+from agents.ekf_subspace import SubspaceNeuralBandit
 from agents.limited_memory_neural_linear import LimitedMemoryNeuralLinearBandit
+from agents.linear_bandit import LinearBandit
+from agents.linear_bandit_wide import LinearBanditWide
+from agents.linear_kf_bandit import LinearKFBandit
+from environments.tabular_env import TabularEnvironment
+from jax.random import PRNGKey, split
 
-from .training_utils import train, MLP, summarize_results
 from .mnist_exp import mapping, method_ordering
+from .training_utils import MLP, summarize_results, train
 
 
 def main(config):
@@ -26,10 +24,28 @@ def main(config):
     shuttle_key, covetype_key, adult_key, stock_key = split(key, 4)
     ntrain = 5000
 
-    shuttle_env = TabularEnvironment(shuttle_key, ntrain=ntrain, name='statlog', intercept=False, path="./bandit-data")
-    covertype_env = TabularEnvironment(covetype_key, ntrain=ntrain, name='covertype', intercept=False, path="./bandit-data")
-    adult_env = TabularEnvironment(adult_key, ntrain=ntrain, name='adult', intercept=False, path="./bandit-data")
-    environments = {"shuttle": shuttle_env, "covertype": covertype_env, "adult": adult_env}
+    shuttle_env = TabularEnvironment(
+        shuttle_key,
+        ntrain=ntrain,
+        name="statlog",
+        intercept=False,
+        path="./bandit-data",
+    )
+    covertype_env = TabularEnvironment(
+        covetype_key,
+        ntrain=ntrain,
+        name="covertype",
+        intercept=False,
+        path="./bandit-data",
+    )
+    adult_env = TabularEnvironment(
+        adult_key, ntrain=ntrain, name="adult", intercept=False, path="./bandit-data"
+    )
+    environments = {
+        "shuttle": shuttle_env,
+        "covertype": covertype_env,
+        "adult": adult_env,
+    }
 
     # Linear & Linear Wide
     linear = {}
@@ -47,8 +63,14 @@ def main(config):
     buffer_size = 20
     nepochs = 100
 
-    nl_lim = {"buffer_size": buffer_size, "opt": optax.sgd(learning_rate, momentum), "eta": eta, "lmbda": lmbda,
-              "update_step_mod": update_step_mod, "nepochs": nepochs}
+    nl_lim = {
+        "buffer_size": buffer_size,
+        "opt": optax.sgd(learning_rate, momentum),
+        "eta": eta,
+        "lmbda": lmbda,
+        "update_step_mod": update_step_mod,
+        "nepochs": nepochs,
+    }
 
     buffer_size = 5000
 
@@ -67,10 +89,15 @@ def main(config):
     nepochs = 1000
     random_projection = False
 
-    ekf_sub_svd = {"opt": optax.sgd(learning_rate, momentum), "prior_noise_variance": prior_noise_variance,
-                   "nwarmup": nwarmup, "nepochs": nepochs,
-                   "observation_noise": observation_noise, "n_components": n_components,
-                   "random_projection": random_projection}
+    ekf_sub_svd = {
+        "opt": optax.sgd(learning_rate, momentum),
+        "prior_noise_variance": prior_noise_variance,
+        "nwarmup": nwarmup,
+        "nepochs": nepochs,
+        "observation_noise": observation_noise,
+        "n_components": n_components,
+        "random_projection": random_projection,
+    }
 
     # Subspace Neural Bandit without SVD
     ekf_sub_rnd = ekf_sub_svd.copy()
@@ -85,44 +112,40 @@ def main(config):
     momentum = 0.9
     observation_noise = 0.01
 
-    ekf_orig = {"opt": optax.sgd(learning_rate, momentum), "prior_noise_variance": prior_noise_variance,
-                "nwarmup": nwarmup, "nepochs": nepochs,
-                "system_noise": system_noise, "observation_noise": observation_noise}
+    ekf_orig = {
+        "opt": optax.sgd(learning_rate, momentum),
+        "prior_noise_variance": prior_noise_variance,
+        "nwarmup": nwarmup,
+        "nepochs": nepochs,
+        "system_noise": system_noise,
+        "observation_noise": observation_noise,
+    }
 
-    bandits = {"Linear": {"kwargs": linear,
-                          "bandit": LinearBandit
-                          },
-               "Linear KF": {"kwargs": linear.copy(),
-                             "bandit": LinearKFBandit
-                             },
-               "Linear Wide": {"kwargs": linear,
-                               "bandit": LinearBanditWide
-                               },
-               "Limited Neural Linear": {"kwargs": nl_lim,
-                                         "bandit": LimitedMemoryNeuralLinearBandit
-                                         },
-               "Unlimited Neural Linear": {"kwargs": nl_unlim,
-                                           "bandit": LimitedMemoryNeuralLinearBandit
-                                           },
-               "EKF Subspace SVD": {"kwargs": ekf_sub_svd,
-                                    "bandit": SubspaceNeuralBandit
-                                    },
-               "EKF Subspace RND": {"kwargs": ekf_sub_rnd,
-                                    "bandit": SubspaceNeuralBandit
-                                    },
-               "EKF Diagonal Subspace SVD": {"kwargs": ekf_sub_svd,
-                                             "bandit": DiagonalSubspaceNeuralBandit
-                                             },
-               "EKF Diagonal Subspace RND": {"kwargs": ekf_sub_rnd,
-                                             "bandit": DiagonalSubspaceNeuralBandit
-                                             },
-               "EKF Orig Diagonal": {"kwargs": ekf_orig,
-                                     "bandit": DiagonalNeuralBandit
-                                     },
-               "EKF Orig Full": {"kwargs": ekf_orig,
-                                 "bandit": EKFNeuralBandit
-                                 }
-               }
+    bandits = {
+        "Linear": {"kwargs": linear, "bandit": LinearBandit},
+        "Linear KF": {"kwargs": linear.copy(), "bandit": LinearKFBandit},
+        "Linear Wide": {"kwargs": linear, "bandit": LinearBanditWide},
+        "Limited Neural Linear": {
+            "kwargs": nl_lim,
+            "bandit": LimitedMemoryNeuralLinearBandit,
+        },
+        "Unlimited Neural Linear": {
+            "kwargs": nl_unlim,
+            "bandit": LimitedMemoryNeuralLinearBandit,
+        },
+        "EKF Subspace SVD": {"kwargs": ekf_sub_svd, "bandit": SubspaceNeuralBandit},
+        "EKF Subspace RND": {"kwargs": ekf_sub_rnd, "bandit": SubspaceNeuralBandit},
+        "EKF Diagonal Subspace SVD": {
+            "kwargs": ekf_sub_svd,
+            "bandit": DiagonalSubspaceNeuralBandit,
+        },
+        "EKF Diagonal Subspace RND": {
+            "kwargs": ekf_sub_rnd,
+            "bandit": DiagonalSubspaceNeuralBandit,
+        },
+        "EKF Orig Diagonal": {"kwargs": ekf_orig, "bandit": DiagonalNeuralBandit},
+        "EKF Orig Full": {"kwargs": ekf_orig, "bandit": EKFNeuralBandit},
+    }
 
     results = []
 
@@ -138,9 +161,15 @@ def main(config):
                 print(f"\tBandit : {bandit_name}")
                 key = PRNGKey(314)
                 start = time()
-                warmup_rewards, rewards_trace, opt_rewards = train(key, properties["bandit"], env, npulls,
-                                                                   config.ntrials,
-                                                                   properties["kwargs"], neural=False)
+                warmup_rewards, rewards_trace, opt_rewards = train(
+                    key,
+                    properties["bandit"],
+                    env,
+                    npulls,
+                    config.ntrials,
+                    properties["kwargs"],
+                    neural=False,
+                )
 
                 rtotal, rstd = summarize_results(warmup_rewards, rewards_trace)
                 end = time()
@@ -152,25 +181,29 @@ def main(config):
     # We obtained these values by running the following code:
     # https://github.com/ofirnabati/Neural-Linear-Bandits-with-Likelihood-Matching
     # set to the parameters presented in the paper: https://arxiv.org/abs/2102.03799
-    lim2data = [["shuttle", "Lim2", 42.20236960171787, 4826.4, 319.82351111111],
-                ["covertype", "Lim2", 124.96883611524915, 2660.7, 333.93744444444],
-                ["adult", "Lim2", 34.89770766110576, 3985.5, 113.127926],
-                ]
+    lim2data = [
+        ["shuttle", "Lim2", 42.20236960171787, 4826.4, 319.82351111111],
+        ["covertype", "Lim2", 124.96883611524915, 2660.7, 333.93744444444],
+        ["adult", "Lim2", 34.89770766110576, 3985.5, 113.127926],
+    ]
 
     # Values obtained from appendix B of https://arxiv.org/abs/2102.03799
     neuraltsdata = [
         ["shuttle", "NeuralTS", 0.0, 4348, 265],
         ["covertype", "NeuralTS", 0.0, 1877, 83],
-        ["adult", "NeuralTS", 0.0, 3769, 2], ]
+        ["adult", "NeuralTS", 0.0, 3769, 2],
+    ]
 
     df = pd.DataFrame(results + lim2data + neuraltsdata)
-    df = df.rename(columns={0: "Dataset", 1: "Method", 2: "Time", 3: "Reward", 4: "Std"})
+    df = df.rename(
+        columns={0: "Dataset", 1: "Method", 2: "Time", 3: "Reward", 4: "Std"}
+    )
 
     df["Method"] = df["Method"].apply(lambda v: mapping[v])
 
-    df["Reward"] = df['Reward'].astype(float)
-    df["Time"] = df['Time'].astype(float)
-    df["Std"] = df['Std'].astype(float)
+    df["Reward"] = df["Reward"].astype(float)
+    df["Time"] = df["Time"].astype(float)
+    df["Std"] = df["Std"].astype(float)
 
     df["Rank"] = df["Method"].apply(lambda v: method_ordering[v])
     df.to_csv(config.filepath)
@@ -178,9 +211,11 @@ def main(config):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--ntrials', type=int, nargs='?', const=10, default=10)
+    parser.add_argument("--ntrials", type=int, nargs="?", const=10, default=10)
     filepath = "bandits/results/tabular_results.csv"
-    parser.add_argument('--filepath', type=str, nargs='?', const=filepath, default=filepath)
+    parser.add_argument(
+        "--filepath", type=str, nargs="?", const=filepath, default=filepath
+    )
 
     # Parse the argument
     args = parser.parse_args()

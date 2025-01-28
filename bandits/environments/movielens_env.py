@@ -1,7 +1,6 @@
-import pandas as pd
-import numpy as  np
-
 import jax.numpy as jnp
+import numpy as np
+import pandas as pd
 
 from .environment import BanditEnvironment
 
@@ -10,11 +9,11 @@ MOVIELENS_NUM_MOVIES = 1682
 
 
 def load_movielens_data(filepath):
-    dataset = pd.read_csv(filepath, delimiter='\t', header=None)
-    columns = {0: 'user_id', 1: 'item_id', 2: 'ranking', 3: 'timestamp'}
+    dataset = pd.read_csv(filepath, delimiter="\t", header=None)
+    columns = {0: "user_id", 1: "item_id", 2: "ranking", 3: "timestamp"}
     dataset = dataset.rename(columns=columns)
-    dataset['user_id'] -= 1
-    dataset['item_id'] -= 1
+    dataset["user_id"] -= 1
+    dataset["item_id"] -= 1
     dataset = dataset.drop(columns="timestamp")
 
     rankings_matrix = np.zeros((MOVIELENS_NUM_USERS, MOVIELENS_NUM_MOVIES))

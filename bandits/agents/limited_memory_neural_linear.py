@@ -1,17 +1,16 @@
 import jax.numpy as jnp
-from jax import jit
-from jax.random import split
-from jax.lax import scan, cond
-from jax.nn import one_hot
-from jax.ops import index_update
 
+# from jax.ops import index_update
 import optax
-
 from flax.training import train_state
-
-from .agent_utils import train
+from jax import jit
+from jax.lax import cond, scan
+from jax.nn import one_hot
+from jax.random import split
 from scripts.training_utils import MLP
 from tensorflow_probability.substrates import jax as tfp
+
+from .agent_utils import train
 
 tfd = tfp.distributions
 
@@ -24,10 +23,18 @@ class LimitedMemoryNeuralLinearBandit:
     of datapoints to train on.
     """
 
-    def __init__(self, num_features, num_arms, buffer_size, model=None, opt=optax.adam(learning_rate=1e-2), eta=6.0,
-                 lmbda=0.25,
-                 update_step_mod=100, nepochs=3000):
-
+    def __init__(
+        self,
+        num_features,
+        num_arms,
+        buffer_size,
+        model=None,
+        opt=optax.adam(learning_rate=1e-2),
+        eta=6.0,
+        lmbda=0.25,
+        update_step_mod=100,
+        nepochs=3000,
+    ):
         self.num_features = num_features
         self.num_arms = num_arms
 
@@ -59,11 +66,17 @@ class LimitedMemoryNeuralLinearBandit:
 
         num_features_last_layer = initial_params["params"]["last_layer"]["bias"].size
         mu = jnp.zeros((self.num_arms, num_features_last_layer))
-        Sigma = 1 / self.lmbda * jnp.eye(num_features_last_layer) * jnp.ones((self.num_arms, 1, 1))
+        Sigma = (
+            1
+            / self.lmbda
+            * jnp.eye(num_features_last_layer)
+            * jnp.ones((self.num_arms, 1, 1))
+        )
         a = self.eta * jnp.ones((self.num_arms,))
         b = self.eta * jnp.ones((self.num_arms,))
-        initial_train_state = train_state.TrainState.create(apply_fn=self.model.apply, params=initial_params,
-                                                            tx=self.opt)
+        initial_train_state = train_state.TrainState.create(
+            apply_fn=self.model.apply, params=initial_params, tx=self.opt
+        )
         t = 0
 
         context_buffer = jnp.zeros((self.buffer_size, nfeatures))
@@ -87,7 +100,7 @@ class LimitedMemoryNeuralLinearBandit:
         """
         source: https://github.com/google/jax/issues/4590
         """
-        buffer = index_update(buffer, index, new_item)
+        buffer = buffer.at[index].set(new_item)
         index = (index + 1) % self.buffer_size
         return buffer, index
 
@@ -123,9 +136,12 @@ class LimitedMemoryNeuralLinearBandit:
             loss = loss.sum() / num_elements
             return loss
 
-        state = cond(self.cond_update_params(t),
-                     lambda s: train(s, loss_fn=loss_fn, nepochs=self.nepochs, has_aux=False)[0],
-                     lambda s: s, state)
+        state = cond(
+            self.cond_update_params(t),
+            lambda s: train(s, loss_fn=loss_fn, nepochs=self.nepochs, has_aux=False)[0],
+            lambda s: s,
+            state,
+        )
 
         transformed_context = self.featurize(state.params, context)
 
@@ -140,13 +156,21 @@ class LimitedMemoryNeuralLinearBandit:
 
         # noise params
         a_update = a_k + 1 / 2
-        b_update = b_k + (reward ** 2 + mu_k.T @ Lambda_k @ mu_k - mu_update.T @ Lambda_update @ mu_update) / 2
+        b_update = (
+            b_k
+            + (
+                reward**2
+                + mu_k.T @ Lambda_k @ mu_k
+                - mu_update.T @ Lambda_update @ mu_update
+            )
+            / 2
+        )
 
         # update only the chosen action at time t
-        mu = index_update(mu, action, mu_update)
-        Sigma = index_update(Sigma, action, Sigma_update)
-        a = index_update(a, action, a_update)
-        b = index_update(b, action, b_update)
+        mu = mu.at[action].set(mu_update)
+        Sigma = Sigma.at[action].set(Sigma_update)
+        a = a.at[action].set(a_update)
+        b = b.at[action].set(b_update)
         t = t + 1
 
         buffer = (context_buffer, reward_buffer, action_buffer, buffer_ix)
@@ -160,7 +184,9 @@ class LimitedMemoryNeuralLinearBandit:
         sigma_key, w_key = split(key)
         sigma2 = tfd.InverseGamma(concentration=a, scale=b).sample(seed=sigma_key)
         covariance_matrix = sigma2[:, None, None] * Sigma
-        w = tfd.MultivariateNormalFullCovariance(loc=mu, covariance_matrix=covariance_matrix).sample(seed=w_key)
+        w = tfd.MultivariateNormalFullCovariance(
+            loc=mu, covariance_matrix=covariance_matrix
+        ).sample(seed=w_key)
         return w
 
     def choose_action(self, key, bel, context):

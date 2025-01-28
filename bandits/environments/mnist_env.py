@@ -1,16 +1,15 @@
-from jax.nn import one_hot
-from jax.random import split, permutation
-
 import numpy as np
+from jax.nn import one_hot
+from jax.random import permutation, split
 from sklearn.datasets import fetch_openml
 
 from .environment import BanditEnvironment
 
 
 def get_mnist(key, ntrain):
-    X, y = fetch_openml('mnist_784', version=1, return_X_y=True, as_frame=False)
+    X, y = fetch_openml("mnist_784", version=1, return_X_y=True, as_frame=False)
 
-    X = X / 255.
+    X = X / 255.0
     y = y.astype(np.int32)
 
     perm = permutation(key, np.arange(len(X)))

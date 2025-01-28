@@ -1,8 +1,8 @@
 import jax.numpy as jnp
-from jax import value_and_grad, jit
-from jax.random import normal
-from jax.lax import scan
+from jax import jit, value_and_grad
 from jax.flatten_util import ravel_pytree
+from jax.lax import scan
+from jax.random import normal
 
 
 def NIGupdate(bel, phi, reward):
@@ -12,19 +12,26 @@ def NIGupdate(bel, phi, reward):
     Sigma_update = jnp.linalg.inv(Lambda_update)
     mu_update = Sigma_update @ (Lambda @ mu + phi * reward)
     a_update = a + 1 / 2
-    b_update = b + (reward ** 2 + mu.T @ Lambda @ mu - mu_update.T @ Lambda_update @ mu_update) / 2
+    b_update = (
+        b
+        + (reward**2 + mu.T @ Lambda @ mu - mu_update.T @ Lambda_update @ mu_update) / 2
+    )
     bel = (mu_update, Sigma_update, a_update, b_update)
     return bel
 
 
-def convert_params_from_subspace_to_full(params_subspace, projection_matrix, params_full):
+def convert_params_from_subspace_to_full(
+    params_subspace, projection_matrix, params_full
+):
     params = jnp.matmul(params_subspace, projection_matrix) + params_full
     return params
 
 
 def generate_random_basis(key, d, D):
     projection_matrix = normal(key, shape=(d, D))
-    projection_matrix = projection_matrix / jnp.linalg.norm(projection_matrix, axis=-1, keepdims=True)
+    projection_matrix = projection_matrix / jnp.linalg.norm(
+        projection_matrix, axis=-1, keepdims=True
+    )
     return projection_matrix
 
 

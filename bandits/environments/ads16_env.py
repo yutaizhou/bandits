@@ -1,22 +1,20 @@
-import jax.numpy as jnp
-from jax.ops import index_add
-from jax.random import split, permutation
-from jax.nn import one_hot
-
-import pandas as pd
-
-import requests
 import io
 
+import jax.numpy as jnp
+import pandas as pd
+import requests
 from environment import BanditEnvironment
+from jax.nn import one_hot
+from jax.ops import index_add
+from jax.random import permutation, split
 
 
 def get_ads16(key, ntrain, intercept):
     url = "https://raw.githubusercontent.com/probml/probml-data/main/data/ads16_preprocessed.csv"
     download = requests.get(url).content
 
-    dataset = pd.read_csv(io.StringIO(download.decode('utf-8')))
-    dataset.drop(columns=['Unnamed: 0'], inplace=True)
+    dataset = pd.read_csv(io.StringIO(download.decode("utf-8")))
+    dataset.drop(columns=["Unnamed: 0"], inplace=True)
     dataset = dataset.sample(frac=1).reset_index(drop=True).to_numpy()
 
     ntrain = ntrain if ntrain > 0 and ntrain < len(dataset) else len(dataset)
@@ -35,7 +33,9 @@ def get_ads16(key, ntrain, intercept):
     for user, nrow in enumerate(n_ads_per_user):
         mykey, key = split(key)
         df_indices = jnp.arange(user * nads, (user + 1) * nads)
-        indices = jnp.append(indices, permutation(mykey, df_indices)[:nrow]).astype(jnp.int32)
+        indices = jnp.append(indices, permutation(mykey, df_indices)[:nrow]).astype(
+            jnp.int32
+        )
 
     narms = 2
     dataset = dataset[indices]

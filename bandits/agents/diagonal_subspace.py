@@ -1,17 +1,40 @@
 import jax.numpy as jnp
 from jsl.nlds.diagonal_extended_kalman_filter import DiagonalExtendedKalmanFilter
-from .ekf_subspace import SubspaceNeuralBandit
 from tensorflow_probability.substrates import jax as tfp
+
+from .ekf_subspace import SubspaceNeuralBandit
 
 tfd = tfp.distributions
 
 
 class DiagonalSubspaceNeuralBandit(SubspaceNeuralBandit):
-
-    def __init__(self, num_features, num_arms, model, opt, prior_noise_variance, nwarmup=1000, nepochs=1000,
-                 system_noise=0.0, observation_noise=1.0, n_components=0.9999, random_projection=False):
-        super().__init__(num_features, num_arms, model, opt, prior_noise_variance, nwarmup, nepochs,
-                         system_noise, observation_noise, n_components, random_projection)
+    def __init__(
+        self,
+        num_features,
+        num_arms,
+        model,
+        opt,
+        prior_noise_variance,
+        nwarmup=1000,
+        nepochs=1000,
+        system_noise=0.0,
+        observation_noise=1.0,
+        n_components=0.9999,
+        random_projection=False,
+    ):
+        super().__init__(
+            num_features,
+            num_arms,
+            model,
+            opt,
+            prior_noise_variance,
+            nwarmup,
+            nepochs,
+            system_noise,
+            observation_noise,
+            n_components,
+            random_projection,
+        )
 
     def init_bel(self, key, contexts, states, actions, rewards):
         bel = super().init_bel(key, contexts, states, actions, rewards)

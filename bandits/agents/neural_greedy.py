@@ -1,12 +1,10 @@
 import jax
 import jax.numpy as jnp
-from jax.random import split
-from jax import vmap, lax
-from jax.nn import one_hot
-
-from flax.training import train_state
-
 from agent_utils import MLP
+from flax.training import train_state
+from jax import lax, vmap
+from jax.nn import one_hot
+from jax.random import split
 
 
 class NeuralGreedy:
@@ -27,8 +25,9 @@ class NeuralGreedy:
         key, mykey = split(key)
 
         initial_params = self.model.init(mykey, jnp.zeros((self.num_features,)))
-        initial_train_state = train_state.TrainState.create(apply_fn=self.model.apply, params=initial_params,
-                                                            tx=self.opt)
+        initial_train_state = train_state.TrainState.create(
+            apply_fn=self.model.apply, params=initial_params, tx=self.opt
+        )
 
         t = 0
 
@@ -38,7 +37,9 @@ class NeuralGreedy:
             return (self.update_bel(bel, context, action, reward), key), None
 
         initial_bel = (initial_train_state, t)
-        (bel, key), _ = lax.scan(update, (initial_bel, key), (contexts, actions, rewards))
+        (bel, key), _ = lax.scan(
+            update, (initial_bel, key), (contexts, actions, rewards)
+        )
         return bel
 
     def cond_update_params(self, t):
@@ -56,11 +57,16 @@ class NeuralGreedy:
         self.X = jnp.vstack([self.X, x])
         self.y = jnp.append(self.y, reward)
 
-        state = lax.cond(self.cond_update_params(t),
-                         lambda bel: train(self.model, bel[0], self.X, self.y, nepochs=self.nepochs, t=bel[1]),
-                         lambda bel: bel[0], bel)
+        state = lax.cond(
+            self.cond_update_params(t),
+            lambda bel: train(
+                self.model, bel[0], self.X, self.y, nepochs=self.nepochs, t=bel[1]
+            ),
+            lambda bel: bel[0],
+            bel,
+        )
 
-        bel = (state)
+        bel = state
         return bel
 
     def init_bel(self, key, contexts, actions, rewards):
@@ -68,10 +74,11 @@ class NeuralGreedy:
         y = rewards
         params = self.model.init(key, X)["params"]
 
-        initial_train_state = train_state.TrainState.create(apply_fn=self.model.apply, params=initial_params,
-                                                            tx=self.opt)
+        initial_train_state = train_state.TrainState.create(
+            apply_fn=self.model.apply, params=initial_params, tx=self.opt
+        )
         params = fit_model(key, self.model, X, y, params)
-        bel = (initial_train_state)
+        bel = initial_train_state
         return bel
 
     def update_bel(self, key, bel, context, action, reward):

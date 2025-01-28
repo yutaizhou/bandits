@@ -1,8 +1,8 @@
+import jax
 import jax.numpy as jnp
-from jax import lax
-from jax import random
-from jax.ops import index_update
+from jax import lax, random
 
+# from jax.ops import index_update
 from tensorflow_probability.substrates import jax as tfp
 
 tfd = tfp.distributions
@@ -16,10 +16,15 @@ class LinearBandit:
         self.lmbda = lmbda
 
     def init_bel(self, key, contexts, states, actions, rewards):
-        mu = jnp.zeros((self.num_arms, self.num_features))
-        Sigma = 1. / self.lmbda * jnp.eye(self.num_features) * jnp.ones((self.num_arms, 1, 1))
-        a = self.eta * jnp.ones((self.num_arms,))
-        b = self.eta * jnp.ones((self.num_arms,))
+        mu = jnp.zeros((self.num_arms, self.num_features), dtype=jnp.float64)
+        Sigma = (
+            1.0
+            / self.lmbda
+            * jnp.eye(self.num_features)
+            * jnp.ones((self.num_arms, 1, 1))
+        ).astype(jnp.float64)
+        a = self.eta * jnp.ones((self.num_arms,), dtype=jnp.float64)
+        b = self.eta * jnp.ones((self.num_arms,), dtype=jnp.float64)
 
         initial_bel = (mu, Sigma, a, b)
 
@@ -44,14 +49,21 @@ class LinearBandit:
         mu_update = Sigma_update @ (Lambda_k @ mu_k + context * reward)
         # noise params
         a_update = a_k + 1 / 2
-        b_update = b_k + (reward ** 2 + mu_k.T @ Lambda_k @ mu_k - mu_update.T @ Lambda_update @ mu_update) / 2
+        b_update = (
+            b_k
+            + (
+                reward**2
+                + mu_k.T @ Lambda_k @ mu_k
+                - mu_update.T @ Lambda_update @ mu_update
+            )
+            / 2
+        )
 
         # Update only the chosen action at time t
-        mu = index_update(mu, action, mu_update)
-        Sigma = index_update(Sigma, action, Sigma_update)
-        a = index_update(a, action, a_update)
-        b = index_update(b, action, b_update)
-
+        mu = mu.at[action].set(mu_update)
+        Sigma = Sigma.at[action].set(Sigma_update)
+        a = a.at[action].set(a_update)
+        b = b.at[action].set(b_update)
         bel = (mu, Sigma, a, b)
 
         return bel
@@ -60,10 +72,13 @@ class LinearBandit:
         mu, Sigma, a, b = bel
 
         sigma_key, w_key = random.split(key, 2)
+        print("YO WUYTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT")
+        print(a, b)
         sigma2_samp = tfd.InverseGamma(concentration=a, scale=b).sample(seed=sigma_key)
         covariance_matrix = sigma2_samp[:, None, None] * Sigma
-        w = tfd.MultivariateNormalFullCovariance(loc=mu, covariance_matrix=covariance_matrix).sample(
-            seed=w_key)
+        w = tfd.MultivariateNormalFullCovariance(
+            loc=mu, covariance_matrix=covariance_matrix
+        ).sample(seed=w_key)
         return w
 
     def choose_action(self, key, bel, context):
