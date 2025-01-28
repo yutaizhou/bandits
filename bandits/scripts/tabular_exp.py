@@ -158,7 +158,7 @@ def main(config):
             for bandit_name, properties in bandits.items():
                 if not bandit_name.startswith("Linear"):
                     properties["kwargs"]["model"] = model
-                print(f"\tBandit : {bandit_name}")
+                print(f"\n\tBandit : {bandit_name}")
                 key = PRNGKey(314)
                 start = time()
                 warmup_rewards, rewards_trace, opt_rewards = train(

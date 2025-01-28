@@ -72,8 +72,6 @@ class LinearBandit:
         mu, Sigma, a, b = bel
 
         sigma_key, w_key = random.split(key, 2)
-        print("YO WUYTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT")
-        print(a, b)
         sigma2_samp = tfd.InverseGamma(concentration=a, scale=b).sample(seed=sigma_key)
         covariance_matrix = sigma2_samp[:, None, None] * Sigma
         w = tfd.MultivariateNormalFullCovariance(

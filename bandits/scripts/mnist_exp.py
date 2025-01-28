@@ -158,7 +158,7 @@ def main(config):
                 properties["kwargs"]["model"] = model
             elif model_name != "MLP1":
                 continue
-            print(f"\tBandit : {bandit_name}")
+            print(f"\n\tBandit : {bandit_name}")
             key = PRNGKey(314)
             start = time()
             warmup_rewards, rewards_trace, opt_rewards = train(

@@ -90,7 +90,7 @@ def main(config):
                 properties["kwargs"]["n_components"] = subspace_dim
                 properties["kwargs"]["model"] = model
                 key, mykey = split(key)
-                print(f"\tBandit : {bandit_name}")
+                print(f"\n\tBandit : {bandit_name}")
                 start = time()
                 warmup_rewards, rewards_trace, opt_rewards = train(
                     mykey,
