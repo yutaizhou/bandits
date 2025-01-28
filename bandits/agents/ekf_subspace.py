@@ -4,10 +4,12 @@ from flax.training import train_state
 from jax import device_put, jit
 from jax.flatten_util import ravel_pytree
 from jax.random import split
-from jsl.nlds.extended_kalman_filter import ExtendedKalmanFilter
 from scripts.training_utils import MLP
 from sklearn.decomposition import PCA
 from tensorflow_probability.substrates import jax as tfp
+
+# from jsl.nlds.extended_kalman_filter import ExtendedKalmanFilter
+from jsl.nlds.extended_kalman_filter import NLDS, filter
 
 from .agent_utils import (
     convert_params_from_subspace_to_full,
@@ -137,7 +139,8 @@ class SubspaceNeuralBandit:
         def fx(params, context, action):
             return predict_rewards(params, context)[action, None]
 
-        ekf = ExtendedKalmanFilter(fz, fx, Q, R)
+        # ekf = ExtendedKalmanFilter(fz, fx, Q, R)
+        ekf = NLDS(fz, fx, Q, R)
         self.ekf = ekf
 
         bel = (params_subspace_init, covariance_subspace_init, 0)
@@ -153,7 +156,13 @@ class SubspaceNeuralBandit:
 
     def update_bel(self, bel, context, action, reward):
         xs = (reward, (context, action))
-        bel, _ = jit(self.ekf.filter_step)(bel, xs)
+        bel = jit(filter)(
+            params=self.ekf,
+            init_state=bel,
+            observations=xs,
+            return_history=False,
+        )
+        # bel, _ = jit(self.ekf.filter_step)(bel, xs)
         return bel
 
     def choose_action(self, key, bel, context):

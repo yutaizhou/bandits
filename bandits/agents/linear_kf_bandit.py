@@ -3,8 +3,11 @@ import jax.numpy as jnp
 # from jax.ops import index_update
 from jax.lax import scan
 from jax.random import split
-from jsl.lds.kalman_filter import KalmanFilterNoiseEstimation
 from tensorflow_probability.substrates import jax as tfp
+
+from jsl.lds.kalman_filter import KalmanFilterNoiseEstimation
+
+# from jsl.lds.kalman_filter_with_unknown_noise import LDS, kalman_filter
 
 tfd = tfp.distributions
 

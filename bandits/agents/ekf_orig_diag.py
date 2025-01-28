@@ -3,9 +3,11 @@ import optax
 from flax.training import train_state
 from jax import jit
 from jax.flatten_util import ravel_pytree
-from jsl.nlds.diagonal_extended_kalman_filter import DiagonalExtendedKalmanFilter
 from scripts.training_utils import MLP
 from tensorflow_probability.substrates import jax as tfp
+
+# from jsl.nlds.diagonal_extended_kalman_filter import DiagonalExtendedKalmanFilter
+from jsl.nlds.diagonal_extended_kalman_filter import NLDS, filter
 
 from .agent_utils import train
 

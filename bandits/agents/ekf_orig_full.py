@@ -3,9 +3,11 @@ import optax
 from flax.training import train_state
 from jax import jit
 from jax.flatten_util import ravel_pytree
-from jsl.nlds.extended_kalman_filter import ExtendedKalmanFilter
 from scripts.training_utils import MLP
 from tensorflow_probability.substrates import jax as tfp
+
+# from jsl.nlds.extended_kalman_filter import ExtendedKalmanFilter
+from jsl.nlds.extended_kalman_filter import NLDS, filter
 
 from .agent_utils import train
 
@@ -103,7 +105,8 @@ class EKFNeuralBandit:
         def fx(params, context, action):
             return predict_rewards(params, context)[action, None]
 
-        ekf = ExtendedKalmanFilter(fz, fx, Q, R)
+        # ekf = ExtendedKalmanFilter(fz, fx, Q, R)
+        ekf = NLDS(fz, fx, Q, R)
         self.ekf = ekf
         bel = (params_subspace_init, covariance_subspace_init, 0)
 
@@ -119,7 +122,13 @@ class EKFNeuralBandit:
 
     def update_bel(self, bel, context, action, reward):
         xs = (reward, (context, action))
-        bel, _ = jit(self.ekf.filter_step)(bel, xs)
+        bel = jit(filter_step)(
+            params=self.ekf,
+            init_state=bel,
+            observations=xs,
+            return_history=False,
+        )
+        # bel, _ = jit(self.ekf.filter_step)(bel, xs)
         return bel
 
     def choose_action(self, key, bel, context):
