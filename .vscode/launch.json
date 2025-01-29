@@ -10,14 +10,26 @@
             "type": "debugpy",
             "request": "launch",
             "program": "/scr/yutaizho/projects/bandits/bandits/__main__.py",
-            "cwd": "${workspaceFolder}",
+            "cwd": "/scr/yutaizho/projects/bandits/",
             "console": "integratedTerminal",
             "args": ["test"],
-            "python": "/scr/yutaizho/miniconda3/envs/bnn39/bin/python",
+            "python": "/scr/yutaizho/miniconda3/envs/bnn310/bin/python",
             "env": {
                 "JAX_DISABLE_JIT": "1",
             },
-            
+        },
+        {
+            "name": "bandits",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "/scr/yutaizho/projects/bandits/bandits/__main__.py",
+            "cwd": "/scr/yutaizho/projects/bandits/",
+            "console": "integratedTerminal",
+            "args": ["run_experiments"],
+            "python": "/scr/yutaizho/miniconda3/envs/bnn310/bin/python",
+            "env": {
+                "JAX_DISABLE_JIT": "1",
+            },
         }
     ]
 }

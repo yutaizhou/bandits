@@ -1,10 +1,14 @@
 import warnings
+from typing import Tuple
 
 import flax.linen as nn
 import jax.numpy as jnp
 from jax import vmap
 from jax.lax import scan
 from jax.random import split
+from jaxtyping import Key
+
+from bandits.environments.environment import BanditEnvironment
 
 warnings.filterwarnings("ignore")
 
@@ -81,9 +85,20 @@ def train(key, bandit_cls, env, npulls, ntrials, bandit_kwargs, neural=True):
     return warmup_rewards, rewards_trace, env.opt_rewards
 
 
-def run_bandit(key, bandit, bel, env, warmup, nsteps, neural=True):
-    def step(bel, cur):
-        mykey, t = cur
+def run_bandit(
+    key,
+    bandit,
+    bel: Tuple,
+    env: BanditEnvironment,
+    warmup: Tuple,
+    nsteps: int,
+    neural: bool = True,
+):
+    def step(
+        bel: Tuple,
+        curr: Tuple[Key, int],
+    ):
+        mykey, t = curr
         context = env.get_context(t)
 
         action = bandit.choose_action(mykey, bel, context)

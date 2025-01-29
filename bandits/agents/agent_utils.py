@@ -1,11 +1,14 @@
 import jax.numpy as jnp
+import jax.random as jr
 from jax import jit, value_and_grad
 from jax.flatten_util import ravel_pytree
 from jax.lax import scan
-from jax.random import normal
 
 
 def NIGupdate(bel, phi, reward):
+    """
+    Normal Inverse Gamma update for unknown variance  on linear (neural) bandits
+    """
     mu, Sigma, a, b = bel
     Lambda = jnp.linalg.inv(Sigma)
     Lambda_update = jnp.outer(phi, phi) + Lambda
@@ -27,12 +30,14 @@ def convert_params_from_subspace_to_full(
     return params
 
 
-def generate_random_basis(key, d, D):
-    projection_matrix = normal(key, shape=(d, D))
-    projection_matrix = projection_matrix / jnp.linalg.norm(
-        projection_matrix, axis=-1, keepdims=True
-    )
-    return projection_matrix
+def generate_random_basis(key, d: int, D: int):
+    """
+    return projection matrix P: fixed but random Gaussian matrix
+    with columns normalized to 1,
+    """
+    P = jr.normal(key, shape=(d, D))
+    P = P / jnp.linalg.norm(P, axis=-1, keepdims=True)
+    return P
 
 
 def train(state, loss_fn, nepochs=300, has_aux=True):

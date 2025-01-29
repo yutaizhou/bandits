@@ -4,10 +4,11 @@ from flax.training import train_state
 from jax import device_put, jit
 from jax.flatten_util import ravel_pytree
 from jax.random import split
-from jsl.nlds.extended_kalman_filter import ExtendedKalmanFilter
 from scripts.training_utils import MLP
 from sklearn.decomposition import PCA
 from tensorflow_probability.substrates import jax as tfp
+
+from jsl.nlds.extended_kalman_filter import ExtendedKalmanFilter
 
 from .agent_utils import (
     convert_params_from_subspace_to_full,
@@ -75,27 +76,34 @@ class SubspaceNeuralBandit:
         self.random_projection = random_projection
 
     def init_bel(self, key, contexts, states, actions, rewards):
+        """
+        contexts: (num_steps, num_features)
+        states: (num_steps, num_actions) # predict class label given features
+        actions: (num_steps,) # taken actions, if warmup, should be round-robin
+        rewards: (num_steps,)
+        """
         warmup_key, projection_key = split(key, 2)
-        initial_params = self.model.init(warmup_key, jnp.ones((1, self.num_features)))[
-            "params"
-        ]
+        actions = actions.astype(int)
+        initial_params = self.model.init(
+            warmup_key,
+            jnp.ones((1, self.num_features)),
+        )["params"]
+
         initial_train_state = train_state.TrainState.create(
             apply_fn=self.model.apply, params=initial_params, tx=self.opt
         )
 
         def loss_fn(params):
-            pred_reward = self.model.apply({"params": params}, contexts)[
-                :, actions.astype(int)
-            ]
-            loss = optax.l2_loss(pred_reward, states[:, actions.astype(int)]).mean()
+            pred_reward = self.model.apply({"params": params}, contexts)[:, actions]
+            loss = optax.l2_loss(pred_reward, states[:, actions]).mean()
             return loss, pred_reward
 
         warmup_state, warmup_metrics = train(
             initial_train_state, loss_fn=loss_fn, nepochs=self.nepochs
         )
 
-        thinned_samples = warmup_metrics["params"][::2]
-        params_trace = thinned_samples[-self.nwarmup :]
+        thinned_samples = warmup_metrics["params"][::2]  # (n_iterates, n_full_params)
+        params_trace = thinned_samples[-self.nwarmup :]  # (n_iterates, n_full_params)
 
         if not self.random_projection:
             pca = PCA(n_components=self.n_components)
@@ -104,7 +112,7 @@ class SubspaceNeuralBandit:
             self.n_components = pca.n_components_
             projection_matrix = device_put(pca.components_)
         else:
-            if type(self.n_components) != int:
+            if type(self.n_components) is not int:
                 raise ValueError(
                     f"n_components must be an integer, got {self.n_components}"
                 )
@@ -114,14 +122,18 @@ class SubspaceNeuralBandit:
                 projection_key, subspace_dim, total_dim
             )
 
-        Q = jnp.eye(subspace_dim) * self.system_noise
-        R = jnp.eye(1) * self.observation_noise
+        Q = jnp.eye(subspace_dim) * self.system_noise  # transition model noise
+        R = jnp.eye(1) * self.observation_noise  # obs model noise
 
         params_full_init, reconstruct_tree_params = ravel_pytree(warmup_state.params)
         params_subspace_init = jnp.zeros(subspace_dim)
         covariance_subspace_init = jnp.eye(subspace_dim) * self.prior_noise_variance
 
         def predict_rewards(params_subspace_sample, context):
+            """
+            params_full_init and projection_matrix do not change. only the subspace
+            samples change.
+            """
             params = convert_params_from_subspace_to_full(
                 params_subspace_sample, projection_matrix, params_full_init
             )
@@ -132,9 +144,11 @@ class SubspaceNeuralBandit:
         self.predict_rewards = predict_rewards
 
         def fz(params):
+            """state transition model"""
             return params
 
         def fx(params, context, action):
+            """observation model"""
             return predict_rewards(params, context)[action, None]
 
         ekf = ExtendedKalmanFilter(fz, fx, Q, R)
@@ -143,16 +157,8 @@ class SubspaceNeuralBandit:
         bel = (params_subspace_init, covariance_subspace_init, 0)
         return bel
 
-    def sample_params(self, key, bel):
-        params_subspace, covariance_subspace, t = bel
-        mv_normal = tfd.MultivariateNormalFullCovariance(
-            loc=params_subspace, covariance_matrix=covariance_subspace
-        )
-        params_subspace = mv_normal.sample(seed=key)
-        return params_subspace
-
     def update_bel(self, bel, context, action, reward):
-        xs = (reward, (context, action))
+        xs = (reward, (context, action))  #
         bel, _ = jit(self.ekf.filter_step)(bel, xs)
         return bel
 
@@ -163,3 +169,13 @@ class SubspaceNeuralBandit:
         predicted_reward = self.predict_rewards(w, context)
         action = predicted_reward.argmax()
         return action
+
+    def sample_params(self, key, bel):
+        """only used in choose_action()"""
+        params_subspace, covariance_subspace, t = bel
+        mv_normal = tfd.MultivariateNormalFullCovariance(
+            loc=params_subspace,
+            covariance_matrix=covariance_subspace,
+        )
+        params_subspace = mv_normal.sample(seed=key)
+        return params_subspace

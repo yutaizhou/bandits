@@ -191,6 +191,12 @@ def TabularEnvironment(
     else:
         raise ValueError("load_from must be equal to pkl, openml or url.")
 
+    """
+    X.shape = (n_samples, n_features)
+    y.shape = (n_samples, n_actions) one hot
+    opt_rewards.shape = (n_samples, n_actions) one hot?
+    """
+
     ntrain = ntrain if ntrain < len(X) and ntrain > 0 else len(X)
     X, y = jnp.float32(X)[:ntrain], jnp.float32(y)[:ntrain]
 
